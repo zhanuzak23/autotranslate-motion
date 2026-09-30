@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Автоперевод — Smart Motion</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --accent:#6E3FF3; --accent-soft:#F1ECFE; --bg:#F3EFE8; --ink:#111; --mute:#8A8A8E;
+  --line:#ECECEF; --field:#F2F2F5;
+  --spring:cubic-bezier(.32,1.25,.5,1);     /* лёгкий overshoot */
+  --out:cubic-bezier(.22,1,.36,1);           /* ease-out-quint */
+  --io:cubic-bezier(.65,0,.35,1);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:#1a1a1d radial-gradient(circle at 50% 30%,#2a2440,#141416 70%);font-family:Inter,system-ui,sans-serif;color:var(--ink);display:grid;place-items:center;min-height:100vh;padding:24px 16px}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.stage{display:flex;flex-direction:column;align-items:center;gap:16px}
+.hint{color:#9a96a8;font-size:13px;text-align:center;max-width:390px;line-height:1.5}
+.hint b{color:#d9d2ff;font-weight:500}
+
+.phone{position:relative;width:390px;height:844px;max-width:calc(100vw - 32px);border-radius:56px;background:#1C1C1E;padding:12px;box-shadow:0 40px 100px -20px #000c}
+.screen{position:relative;width:100%;height:100%;border-radius:44px;overflow:hidden;background:var(--bg);display:flex;flex-direction:column}
+
+/* status + header */
+.top{background:#fff;position:relative;z-index:3}
+.status{height:50px;display:flex;align-items:center;justify-content:space-between;padding:6px 30px 0;font-weight:600;font-size:16px}
+.batt{width:25px;height:12px;border:1.5px solid #111;border-radius:4px;padding:1.5px;position:relative}
+.batt i{display:block;height:100%;background:#111;border-radius:1.5px}
+.header{display:flex;align-items:center;gap:10px;padding:6px 14px 12px 10px}
+.back{color:var(--accent);width:24px;height:32px;display:grid;place-items:center}
+.ava{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#F06CA8,#C9437F);color:#fff;font-weight:600;font-size:14px;display:grid;place-items:center;flex:none}
+.who{flex:1;min-width:0}
+.name{font-weight:600;font-size:16px;display:flex;align-items:center;gap:6px}
+.tag{font-size:10px;font-weight:500;color:#C9731B;background:#FFEFD9;padding:2px 6px;border-radius:5px}
+.sub{position:relative;height:17px;font-size:12px;margin-top:2px;overflow:hidden}
+.sub span{position:absolute;left:0;top:0;white-space:nowrap;display:flex;align-items:center;gap:4px}
+.sub .s-seen{color:var(--mute)}
+.sub .s-tr{color:var(--accent);cursor:pointer}
+.icon-btn{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;transition:background .2s,transform .15s var(--out)}
+.icon-btn:active{transform:scale(.9)}
+.more{background:var(--field)}
+.more.lit{box-shadow:0 0 0 4px #fff,0 0 0 6px #ffffff88}
+
+/* chat */
+.chat{flex:1;overflow:auto;padding:14px 12px 20px;display:flex;flex-direction:column;gap:10px;position:relative}
+.day{align-self:center;background:#fff;border-radius:10px;font-size:11px;font-weight:600;padding:5px 10px;margin:4px 0 6px}
+.msg{max-width:78%;background:#fff;border-radius:16px;padding:9px 12px 7px;font-size:14px;line-height:1.35;position:relative;overflow:hidden;align-self:flex-start;will-change:width,height}
+.msg.out{align-self:flex-end;background:var(--accent);color:#fff}
+.msg .t{display:block;white-space:pre-wrap}
+.msg .time{display:block;text-align:right;font-size:10px;color:var(--mute);margin-top:2px}
+.msg.out .time{color:#ffffffb0}
+.msg .orig{display:block;font-size:11px;color:var(--mute);margin-top:4px;padding-top:4px;border-top:1px solid var(--line)}
+.shimmer{position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,#6E3FF322 50%,transparent 70%);transform:translateX(-100%);pointer-events:none}
+
+/* composer */
+.composer{background:#fff;display:flex;align-items:center;gap:10px;padding:8px 10px 30px}
+.field{flex:1;height:36px;border-radius:18px;background:var(--field);display:flex;align-items:center;justify-content:space-between;padding:0 10px 0 14px;color:var(--mute);font-size:14px}
+.mic{width:36px;height:36px;border-radius:50%;background:var(--accent);display:grid;place-items:center}
+.home{position:absolute;bottom:8px;left:50%;translate:-50% 0;width:134px;height:5px;border-radius:3px;background:#111;z-index:20}
+
+/* scrim */
+.scrim{position:absolute;inset:0;background:#2B1D5C;opacity:0;pointer-events:none;z-index:5}
+
+/* menu */
+.menu{position:absolute;top:106px;right:14px;width:252px;background:#fff;border-radius:18px;padding:6px;box-shadow:0 20px 50px -10px #0003,0 0 0 .5px #0000000d;z-index:6;transform-origin:calc(100% - 20px) -8px;visibility:hidden}
+.menu .auto{border-radius:13px;padding:10px 10px 10px 12px;display:flex;gap:10px;background:var(--field);transition:background .35s var(--out)}
+.menu .auto.on{background:var(--accent-soft)}
+.menu .auto .txt{flex:1}
+.menu .auto b{font-weight:600;font-size:14px;display:block}
+.menu .auto small{font-size:11px;color:var(--mute);line-height:1.3;display:block;margin-top:2px}
+.menu .row{display:flex;align-items:center;gap:12px;padding:11px 10px;font-size:14px;border-radius:10px;width:100%;text-align:left}
+.menu .row:active{background:var(--field)}
+.menu .lang{justify-content:space-between;color:var(--mute);font-size:13px;border-bottom:1px solid var(--line);border-radius:0;margin-bottom:4px;transition:color .3s}
+.menu .lang .val{display:flex;align-items:center;gap:4px;transition:color .3s}
+.menu .lang.on{color:var(--ink)}
+.menu .lang.on .val{color:var(--accent)}
+.menu .item{opacity:0}
+
+/* switch */
+.sw{width:36px;height:22px;border-radius:11px;background:#E3E3E8;position:relative;flex:none;transition:background .3s var(--out);margin-top:1px}
+.sw i{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:9px;background:#fff;box-shadow:0 2px 4px #0002;transition:transform .45s var(--spring),width .2s var(--out)}
+.sw:active i{width:22px}
+.sw.on{background:var(--accent)}
+.sw.on i{transform:translateX(14px)}
+.sw.on:active i{transform:translateX(10px)}
+
+/* toast */
+.toast{position:absolute;left:18px;right:18px;bottom:96px;background:#1F1B2E;color:#fff;border-radius:14px;padding:12px 14px;display:flex;align-items:center;gap:10px;font-size:13px;z-index:7;visibility:hidden}
+.toast .ok{width:18px;height:18px;border-radius:50%;background:#22B35E;display:grid;place-items:center;flex:none}
+.toast .grow{flex:1}
+.toast button{color:#B9A5FF;font-weight:600}
+
+/* coachmark */
+.coach{position:absolute;top:120px;right:12px;width:284px;background:#fff;border-radius:16px;padding:14px;z-index:9;visibility:hidden;transform-origin:calc(100% - 26px) -10px}
+.coach:before{content:"";position:absolute;right:20px;top:-7px;width:14px;height:14px;background:#fff;transform:rotate(45deg);border-radius:2px}
+.coach h4{font-size:14px;display:flex;gap:8px;align-items:center}
+.coach p{font-size:12px;color:#444;margin:8px 0 12px;line-height:1.4}
+.coach .f{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--mute)}
+.coach .f button{background:var(--accent);color:#fff;font-weight:600;font-size:13px;padding:8px 14px;border-radius:10px}
+.ring{position:absolute;top:0;left:0;width:50px;height:50px;border-radius:50%;border:2px solid #fff;z-index:9;pointer-events:none;visibility:hidden}
+
+/* sheet */
+.sheet{position:absolute;left:0;right:0;bottom:0;height:calc(100% - 128px);background:#fff;border-radius:22px 22px 0 0;z-index:8;transform:translateY(105%);display:flex;flex-direction:column;touch-action:none}
+.grab{padding:8px 0 4px;display:grid;place-items:center;cursor:grab}
+.grab i{width:36px;height:5px;border-radius:3px;background:#DADADF}
+.sh-head{display:flex;justify-content:space-between;align-items:flex-start;padding:4px 16px 0}
+.sh-head h3{font-size:18px;font-weight:700}
+.sh-head p{font-size:11px;color:var(--mute);margin-top:4px}
+.done{font-weight:600;font-size:14px;color:#A6A6AB;transition:color .25s}
+.done.ready{color:var(--accent)}
+.seg{margin:14px 12px 0;background:var(--field);border-radius:11px;padding:3px;display:flex;position:relative}
+.seg button{flex:1;height:28px;font-size:12px;font-weight:500;position:relative;z-index:1;color:#555;transition:color .25s}
+.seg button.act{color:#111}
+.seg .pill{position:absolute;top:3px;left:3px;width:calc(50% - 3px);height:28px;background:#fff;border-radius:9px;box-shadow:0 1px 3px #0001;transition:transform .45s var(--spring)}
+.search{margin:12px 12px 0;height:36px;border-radius:12px;background:var(--field);display:flex;align-items:center;gap:8px;padding:0 10px;border:1.5px solid transparent;transition:border-color .25s,background .25s,box-shadow .25s}
+.search:focus-within{border-color:var(--accent);background:#fff;box-shadow:0 0 0 4px #6E3FF31a}
+.search input{flex:1;border:0;background:none;font:inherit;font-size:14px;outline:none}
+.search .clr{width:18px;height:18px;border-radius:50%;background:#C7C7CC;display:grid;place-items:center;opacity:0;transform:scale(.4);transition:opacity .2s,transform .3s var(--spring)}
+.search.has .clr{opacity:1;transform:none}
+.list{flex:1;overflow:auto;padding:6px 6px 40px;position:relative}
+.cap{font-size:11px;font-weight:600;color:#6c6c70;padding:12px 10px 6px}
+.lang-row{width:100%;display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-radius:12px;text-align:left;position:relative}
+.lang-row .n{font-size:14px;display:block}
+.lang-row .d{font-size:10.5px;color:var(--mute);display:block;margin-top:2px}
+.lang-row .d.a{color:var(--accent)}
+.lang-row mark{background:none;color:var(--accent);font-weight:700}
+.sel-bg{position:absolute;left:6px;right:6px;height:0;background:var(--accent-soft);border-radius:12px;pointer-events:none;opacity:0}
+.check{width:22px;height:22px;border-radius:50%;background:var(--accent);display:grid;place-items:center;position:absolute;right:18px;pointer-events:none;opacity:0}
+.sep{height:1px;background:var(--line);margin:6px 12px}
+.empty{text-align:center;font-size:11.5px;color:var(--mute);padding:30px 40px;line-height:1.6}
+
+@media (prefers-reduced-motion:reduce){*{transition-duration:.01ms!important;animation-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<div class="stage">
+<div class="phone"><div class="screen" id="screen">
+  <div class="top">
+    <div class="status"><span>9:41</span><span class="batt"><i></i></span></div>
+    <div class="header">
+      <button class="back" aria-label="Назад"><svg width="10" height="17" viewBox="0 0 10 17"><path d="M8.5 1.5 2 8.5l6.5 7" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <div class="ava">LW</div>
+      <div class="who">
+        <div class="name">Li Wei <span class="tag">Клиент</span></div>
+        <div class="sub" id="sub">
+          <span class="s-seen">был(а) 15 минут назад</span>
+          <span class="s-tr" style="opacity:0"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 5h9M8.5 3v2M11 5c-1 4-3.5 7-6.5 8.5M6.5 8.5c1.2 2 3 3.5 5 4.5M13 21l4-9 4 9M14.5 18h5"/></svg><em style="font-style:normal" id="subLang">Автоперевод на русский</em></span>
+        </div>
+      </div>
+      <button class="icon-btn" aria-label="Звонок"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8"><path d="M5 4h3l2 5-2.5 1.5a11 11 0 0 0 6 6L15 14l5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg></button>
+      <button class="icon-btn more" id="more" aria-label="Ещё"><svg width="18" height="4" viewBox="0 0 18 4"><circle cx="2" cy="2" r="2"/><circle cx="9" cy="2" r="2"/><circle cx="16" cy="2" r="2"/></svg></button>
+    </div>
+  </div>
+
+  <div class="chat" id="chat">
+    <div class="day">Сегодня</div>
+  </div>
+
+  <div class="composer">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="1.8" stroke-linecap="round"><path d="M20 11.5 12 19.5a5 5 0 0 1-7-7l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7L9.7 17.2a1.7 1.7 0 0 1-2.4-2.4L15 7"/></svg>
+    <div class="field">Сообщение <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#444" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5a4.5 4.5 0 0 0 7 0" stroke-linecap="round"/><circle cx="9" cy="10" r=".8" fill="#444"/><circle cx="15" cy="10" r=".8" fill="#444"/></svg></div>
+    <div class="mic"><svg width="16" height="18" viewBox="0 0 16 18" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="1" width="6" height="10" rx="3"/><path d="M2 8a6 6 0 0 0 12 0M8 14v3"/></svg></div>
+  </div>
+
+  <div class="scrim" id="scrim"></div>
+
+  <div class="menu" id="menu" role="menu">
+    <div class="auto item" id="autoRow">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8" stroke-linecap="round"><path d="M4 5h9M8.5 3v2M11 5c-1 4-3.5 7-6.5 8.5M6.5 8.5c1.2 2 3 3.5 5 4.5M13 21l4-9 4 9M14.5 18h5"/></svg>
+      <div class="txt"><b>Автоперевод</b><small>Переводить сообщения<br>на язык чтения</small></div>
+      <button class="sw" id="sw" role="switch" aria-checked="false" aria-label="Автоперевод"><i></i></button>
+    </div>
+    <button class="row lang item" id="langRow"><span>Язык перевода</span><span class="val"><span id="langVal">Русский</span><svg width="7" height="11" viewBox="0 0 7 11"><path d="m1.5 1.5 4 4-4 4" stroke="currentColor" stroke-width="1.6" fill="none"/></svg></span></button>
+    <button class="row item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Поиск по чату</button>
+    <button class="row item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8" stroke-linecap="round"><path d="M18 16V11a6 6 0 0 0-9.5-4.9M6 9.5V16l-2 2h14M10 21h4M3 3l18 18"/></svg>Без звука</button>
+    <button class="row item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/></svg>Медиа и файлы</button>
+    <button class="row item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5" stroke-linecap="round"/></svg>Профиль клиента</button>
+  </div>
+
+  <div class="toast" id="toast"><span class="ok"><svg width="10" height="8" viewBox="0 0 10 8"><path d="m1 4 3 3 5-6" stroke="#fff" stroke-width="1.8" fill="none"/></svg></span><span class="grow" id="toastTxt">Автоперевод включён</span><button id="undo">Отменить</button></div>
+
+  <div class="ring" id="ring"></div>
+  <div class="coach" id="coach">
+    <h4><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6E3FF3" stroke-width="1.8" stroke-linecap="round"><path d="M4 5h9M8.5 3v2M11 5c-1 4-3.5 7-6.5 8.5M6.5 8.5c1.2 2 3 3.5 5 4.5M13 21l4-9 4 9M14.5 18h5"/></svg>Автоперевод всегда здесь</h4>
+    <p>Включите в меню «•••», когда понадобится перевод</p>
+    <div class="f"><span>1 из 1</span><button id="gotIt">Понятно</button></div>
+  </div>
+
+  <div class="sheet" id="sheet" role="dialog" aria-label="Язык перевода">
+    <div class="grab" id="grab"><i></i></div>
+    <div class="sh-head"><div><h3>Язык перевода</h3><p>Для чата с Li Wei</p></div><button class="done" id="done">Готово</button></div>
+    <div class="seg" id="seg"><span class="pill"></span><button class="act">Этот чат</button><button>Все чаты</button></div>
+    <label class="search" id="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A8A8E" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" placeholder="Найти язык" autocomplete="off"><button class="clr" id="clr" aria-label="Очистить"><svg width="8" height="8" viewBox="0 0 8 8"><path d="m1 1 6 6M7 1 1 7" stroke="#fff" stroke-width="1.6"/></svg></button></label>
+    <div class="list" id="list"></div>
+  </div>
+
+  <div class="home"></div>
+</div></div>
+<p class="hint">Нажмите <b>•••</b> → включите <b>Автоперевод</b>. Тапните подзаголовок или «Язык перевода», чтобы сменить язык. Шторку можно тянуть вниз.</p>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const LANGS = [
+  {id:'ru', n:'Русский',  d:'русский',   rec:'язык интерфейса', acc:'на русский'},
+  {id:'en', n:'English',  d:'английский',rec:'вы переводили на него 12 раз', acc:'на английский'},
+  {id:'zh', n:'中文',     d:'китайский', acc:'на китайский'},
+  {id:'ar', n:'العربية',  d:'арабский',  acc:'на арабский'},
+  {id:'kk', n:'Қазақша',  d:'казахский', acc:'на казахский'},
+  {id:'es', n:'Español',  d:'испанский', acc:'на испанский'},
+  {id:'de', n:'Deutsch',  d:'немецкий',  acc:'на немецкий'},
+];
+const MSGS = [
+  {time:'10:02', zh:'你好，我们什么时候可以开始这个项目？', ru:'Здравствуйте, когда мы можем начать этот проект?', en:'Hello, when can we start this project?', ar:'مرحبًا، متى يمكننا بدء هذا المشروع؟', kk:'Сәлеметсіз бе, бұл жобаны қашан бастай аламыз?', es:'Hola, ¿cuándo podemos empezar este proyecto?', de:'Hallo, wann können wir mit dem Projekt beginnen?'},
+  {out:true, time:'10:05', text:'Можем начать в понедельник, пришлю план.'},
+  {time:'10:07', zh:'请把预算表发给我们。', ru:'Пришлите нам, пожалуйста, смету.', en:'Please send us the budget sheet.', ar:'يرجى إرسال جدول الميزانية إلينا.', kk:'Бізге бюджет кестесін жіберіңізші.', es:'Envíennos la hoja de presupuesto, por favor.', de:'Bitte schicken Sie uns die Budgettabelle.'},
+  {time:'10:07', zh:'谢谢！', ru:'Спасибо!', en:'Thank you!', ar:'شكرًا!', kk:'Рахмет!', es:'¡Gracias!', de:'Danke!'},
+];
+const state = {auto:false, lang:'ru', pending:'ru', coachShown:false, menuOpen:false, sheetOpen:false};
+const SPRING = 'cubic-bezier(.32,1.25,.5,1)', OUT = 'cubic-bezier(.22,1,.36,1)';
+
+/* ---------- chat render ---------- */
+const chat = $('#chat');
+const bubbles = MSGS.map(m => {
+  const el = document.createElement('div');
+  el.className = 'msg' + (m.out ? ' out' : '');
+  el.innerHTML = `<span class="t"></span><span class="time">${m.time}${m.out?' ✓✓':''}</span>`;
+  el.querySelector('.t').textContent = m.out ? m.text : m.zh;
+  chat.appendChild(el);
+  return el;
+});
+const currentLang = () => state.auto ? state.lang : 'zh';
+
+/* Smart-animate: морфинг размера пузыря + blur-crossfade текста */
+function morphMessages(){
+  const target = currentLang();
+  let i = 0;
+  MSGS.forEach((m, idx) => {
+    if (m.out) return;
+    const el = bubbles[idx], t = el.querySelector('.t');
+    const next = m[target] || m.zh;
+    if (t.textContent === next) return;
+    const delay = i++ * 70;
+    setTimeout(() => {
+      const a = el.getBoundingClientRect();
+      const ghost = t.cloneNode(true);
+      t.textContent = next;
+      t.dir = target === 'ar' ? 'rtl' : 'auto';
+      el.style.width = ''; el.style.height = '';
+      const b = el.getBoundingClientRect();
+      // старый текст — абсолютом поверх, уходит вверх и в blur
+      Object.assign(ghost.style,{position:'absolute',left:'12px',top:'9px',width:(a.width-24)+'px'});
+      el.appendChild(ghost);
+      ghost.animate([{opacity:1,filter:'blur(0)',transform:'none'},{opacity:0,filter:'blur(6px)',transform:'translateY(-6px)'}],{duration:220,easing:'ease-in',fill:'forwards'}).onfinish=()=>ghost.remove();
+      t.animate([{opacity:0,filter:'blur(6px)',transform:'translateY(6px)'},{opacity:1,filter:'blur(0)',transform:'none'}],{duration:420,delay:120,easing:OUT,fill:'backwards'});
+      el.animate([{width:a.width+'px',height:a.height+'px'},{width:b.width+'px',height:b.height+'px'}],{duration:520,easing:SPRING});
+      const sh = document.createElement('span'); sh.className='shimmer'; el.appendChild(sh);
+      sh.animate([{transform:'translateX(-100%)'},{transform:'translateX(100%)'}],{duration:650,easing:'ease-in-out'}).onfinish=()=>sh.remove();
+    }, delay);
+  });
+}
+
+/* подзаголовок: вертикальный слайд между «был(а)…» и «Автоперевод на …» */
+function updateSub(){
+  const seen = $('.s-seen'), tr = $('.s-tr');
+  const show = state.auto ? tr : seen, hide = state.auto ? seen : tr;
+  const txt = 'Автоперевод ' + LANGS.find(l=>l.id===state.lang).acc;
+  const lab = $('#subLang');
+  if (lab.textContent !== txt && state.auto && getComputedStyle(tr).opacity === '1'){
+    lab.animate([{opacity:1,transform:'none'},{opacity:0,transform:'translateY(-8px)'}],{duration:160,easing:'ease-in'}).onfinish=()=>{
+      lab.textContent = txt;
+      lab.animate([{opacity:0,transform:'translateY(8px)'},{opacity:1,transform:'none'}],{duration:320,easing:OUT});
+    };
+    return;
+  }
+  lab.textContent = txt;
+  if (show.style.opacity === '1') return;
+  hide.animate([{opacity:1,transform:'none'},{opacity:0,transform:'translateY(-100%)'}],{duration:260,easing:'ease-in',fill:'forwards'});
+  show.animate([{opacity:0,transform:'translateY(100%)'},{opacity:1,transform:'none'}],{duration:420,delay:80,easing:OUT,fill:'forwards'});
+  hide.style.opacity='0'; show.style.opacity='1';
+}
+
+/* ---------- scrim ---------- */
+const scrim = $('#scrim');
+function setScrim(on, z=5, alpha=.22){
+  scrim.style.zIndex = z;
+  scrim.style.pointerEvents = on ? 'auto' : 'none';
+  scrim.animate([{opacity:getComputedStyle(scrim).opacity},{opacity:on?alpha:0}],{duration:on?260:220,easing:OUT,fill:'forwards'});
+}
+
+/* ---------- menu ---------- */
+const menu = $('#menu'), more = $('#more');
+function openMenu(){
+  if (state.menuOpen) return; state.menuOpen = true;
+  syncMenu();
+  menu.style.visibility='visible';
+  menu.animate([{opacity:0,transform:'scale(.6)',filter:'blur(4px)'},{opacity:1,transform:'none',filter:'blur(0)'}],{duration:380,easing:SPRING,fill:'forwards'});
+  [...menu.querySelectorAll('.item')].forEach((it,i)=>it.animate([{opacity:0,transform:'translateY(-6px)'},{opacity:1,transform:'none'}],{duration:300,delay:40+i*28,easing:OUT,fill:'forwards'}));
+  setScrim(true,5,.18);
+  more.style.background='#E6E0FA';
+}
+function closeMenu(){
+  if (!state.menuOpen) return; state.menuOpen = false;
+  menu.animate([{opacity:1,transform:'none'},{opacity:0,transform:'scale(.85)'}],{duration:180,easing:'ease-in',fill:'forwards'}).onfinish=()=>{ if(!state.menuOpen){menu.style.visibility='hidden';menu.querySelectorAll('.item').forEach(i=>i.getAnimations().forEach(a=>a.cancel()))} };
+  if (!state.sheetOpen) setScrim(false);
+  more.style.background='';
+}
+function syncMenu(){
+  $('#sw').classList.toggle('on',state.auto);
+  $('#sw').setAttribute('aria-checked',state.auto);
+  $('#autoRow').classList.toggle('on',state.auto);
+  $('#langRow').classList.toggle('on',state.auto);
+  $('#langVal').textContent = LANGS.find(l=>l.id===state.lang).n;
+}
+more.onclick = e => { e.stopPropagation(); state.menuOpen ? closeMenu() : openMenu(); };
+scrim.onclick = () => { if (state.sheetOpen) closeSheet(); else closeMenu(); };
+
+function setAuto(on, {toast=true}={}){
+  state.auto = on; syncMenu(); morphMessages(); updateSub();
+  if (on && toast) showToast('Автоперевод включён', true);
+  if (!on){
+    hideToast();
+    if (!state.coachShown){ state.coachShown = true; setTimeout(()=>{closeMenu(); showCoach();}, 380); return; }
+  }
+  setTimeout(closeMenu, on ? 420 : 300);
+}
+$('#sw').onclick = e => { e.stopPropagation(); setAuto(!state.auto); };
+$('#autoRow').onclick = e => { if (e.target.closest('.sw')) return; setAuto(!state.auto); };
+$('#langRow').onclick = () => { closeMenu(); setTimeout(openSheet, 120); };
+$('.s-tr').onclick = openSheet;
+
+/* ---------- toast ---------- */
+const toast = $('#toast'); let toastT;
+function showToast(text){
+  $('#toastTxt').textContent = text;
+  clearTimeout(toastT);
+  toast.style.visibility='visible';
+  toast.animate([{opacity:0,transform:'translateY(24px) scale(.94)'},{opacity:1,transform:'none'}],{duration:480,easing:SPRING,fill:'forwards'});
+  toast.querySelector('.ok').animate([{transform:'scale(0) rotate(-45deg)'},{transform:'none'}],{duration:500,delay:120,easing:SPRING,fill:'backwards'});
+  toastT = setTimeout(hideToast, 3200);
+}
+function hideToast(){
+  clearTimeout(toastT);
+  if (toast.style.visibility!=='visible') return;
+  toast.animate([{opacity:1,transform:'none'},{opacity:0,transform:'translateY(16px) scale(.96)'}],{duration:220,easing:'ease-in',fill:'forwards'}).onfinish=()=>toast.style.visibility='hidden';
+}
+$('#undo').onclick = () => { hideToast(); state.auto=false; syncMenu(); morphMessages(); updateSub(); };
+
+/* ---------- coachmark ---------- */
+const coach = $('#coach'), ring = $('#ring');
+function showCoach(){
+  setScrim(true,8,.38);
+  const s = $('#screen').getBoundingClientRect(), m = more.getBoundingClientRect();
+  ring.style.left = (m.left - s.left - 7)+'px'; ring.style.top = (m.top - s.top - 7)+'px';
+  more.style.position='relative'; more.style.zIndex='10'; $('.top').style.zIndex='9';
+  more.classList.add('lit');
+  ring.style.visibility='visible'; coach.style.visibility='visible';
+  ring.animate([{opacity:.9,transform:'scale(.8)'},{opacity:0,transform:'scale(1.6)'}],{duration:1400,iterations:Infinity,easing:'ease-out'});
+  coach.animate([{opacity:0,transform:'scale(.7) translateY(-8px)'},{opacity:1,transform:'none'}],{duration:460,easing:SPRING,fill:'forwards'});
+}
+$('#gotIt').onclick = () => {
+  coach.animate([{opacity:1,transform:'none'},{opacity:0,transform:'scale(.9)'}],{duration:180,easing:'ease-in',fill:'forwards'}).onfinish=()=>{
+    coach.style.visibility='hidden'; ring.style.visibility='hidden'; ring.getAnimations().forEach(a=>a.cancel());
+    more.classList.remove('lit'); more.style.zIndex=''; $('.top').style.zIndex='';
+  };
+  setScrim(false);
+};
+
+/* ---------- sheet ---------- */
+const sheet = $('#sheet'), list = $('#list'), q = $('#q');
+function openSheet(){
+  if (state.sheetOpen) return; state.sheetOpen = true;
+  state.pending = state.lang; q.value=''; $('#search').classList.remove('has');
+  renderList(); updateDone();
+  setScrim(true,7,.3);
+  sheet.animate([{transform:getComputedStyle(sheet).transform},{transform:'translateY(0)'}],{duration:560,easing:'cubic-bezier(.3,1.15,.45,1)',fill:'forwards'});
+  [...list.children].forEach((c,i)=>c.animate([{opacity:0,transform:'translateY(14px)'},{opacity:1,transform:'none'}],{duration:420,delay:120+i*22,easing:OUT,fill:'backwards'}));
+}
+function closeSheet(v=0){
+  if (!state.sheetOpen) return; state.sheetOpen=false; q.blur();
+  const dur = Math.max(180, 340 - v*120);
+  sheet.animate([{transform:getComputedStyle(sheet).transform},{transform:'translateY(105%)'}],{duration:dur,easing:'cubic-bezier(.4,0,.8,.6)',fill:'forwards'});
+  setScrim(false);
+}
+function updateDone(){ $('#done').classList.toggle('ready', state.pending!==state.lang || !state.auto); }
+$('#done').onclick = () => {
+  const changed = state.pending!==state.lang || !state.auto;
+  state.lang = state.pending; closeSheet();
+  if (!changed) return;
+  setTimeout(()=>{ const was=state.auto; state.auto=true; syncMenu(); morphMessages(); updateSub(); if(!was) showToast('Автоперевод включён'); else showToast('Переводим '+LANGS.find(l=>l.id===state.lang).acc); }, 220);
+};
+
+/* segmented control */
+$('#seg').querySelectorAll('button').forEach((b,i)=>b.onclick=()=>{
+  $('#seg').querySelectorAll('button').forEach(x=>x.classList.remove('act')); b.classList.add('act');
+  $('#seg .pill').style.transform = `translateX(${i*100}%)`;
+});
+
+/* list render + FLIP */
+function rowHTML(l, hl){
+  const name = hl ? hilite(l.n,hl) : l.n, desc = hl ? hilite(l.d,hl) : (l.rec||l.d);
+  return `<button class="lang-row" data-id="${l.id}"><span><span class="n">${name}</span><span class="d ${l.rec&&l.id==='ru'&&!hl?'a':''}">${desc}</span></span></button>`;
+}
+function hilite(s,h){ const i=s.toLowerCase().indexOf(h); return i<0?s:s.slice(0,i)+'<mark>'+s.slice(i,i+h.length)+'</mark>'+s.slice(i+h.length); }
+function renderList(){
+  const h = q.value.trim().toLowerCase();
+  const prev = {}; list.querySelectorAll('.lang-row').forEach(r=>prev[r.dataset.id]=r.getBoundingClientRect().top);
+  let html = '<div class="sel-bg" id="selBg"></div><div class="check" id="check"><svg width="11" height="9" viewBox="0 0 11 9"><path d="m1 4.5 3 3 6-6" stroke="#fff" stroke-width="2" fill="none"/></svg></div>';
+  if (!h){
+    html += '<div class="cap">Рекомендуем</div>' + LANGS.filter(l=>l.rec).map(l=>rowHTML(l)).join('') +
+            '<div class="sep"></div><div class="cap">Все языки</div>' + LANGS.filter(l=>!l.rec).map(l=>rowHTML(l)).join('');
+  } else {
+    const f = LANGS.filter(l=>l.n.toLowerCase().includes(h)||l.d.includes(h));
+    html += `<div class="cap">Найдено: ${f.length}</div>` + f.map(l=>rowHTML(l,h)).join('') +
+            `<div class="empty">Нет нужного? Мы добавляем языки<br>по запросу</div>`;
+  }
+  list.innerHTML = html;
+  list.querySelectorAll('.lang-row').forEach(r=>{
+    r.onclick = () => select(r.dataset.id);
+    const t = r.getBoundingClientRect().top;
+    if (prev[r.dataset.id]!=null && prev[r.dataset.id]!==t) r.animate([{transform:`translateY(${prev[r.dataset.id]-t}px)`},{transform:'none'}],{duration:420,easing:SPRING});
+    else if (prev[r.dataset.id]==null && Object.keys(prev).length) r.animate([{opacity:0,transform:'scale(.96)'},{opacity:1,transform:'none'}],{duration:300,easing:OUT});
+  });
+  placeSelection(false);
+}
+/* выделение «перетекает» от строки к строке (shared element) */
+function placeSelection(animate=true){
+  const bg=$('#selBg'), ck=$('#check'), row=list.querySelector(`[data-id="${state.pending}"]`);
+  if (!row){ bg.style.opacity=0; ck.style.opacity=0; return; }
+  const top=row.offsetTop, h=row.offsetHeight;
+  const from={top:bg.style.top, height:bg.style.height, op:getComputedStyle(bg).opacity};
+  bg.style.top=top+'px'; bg.style.height=h+'px'; bg.style.opacity=1;
+  ck.style.top=(top+h/2-11)+'px'; ck.style.opacity=1;
+  list.querySelectorAll('.lang-row .n').forEach(n=>n.style.fontWeight='');
+  row.querySelector('.n').style.fontWeight='600';
+  if (animate && from.top){
+    bg.animate([{top:from.top,height:from.height},{top:top+'px',height:h+'px'}],{duration:460,easing:SPRING});
+    ck.animate([{transform:'scale(0)',opacity:0},{transform:'scale(1.15)',opacity:1,offset:.6},{transform:'scale(1)',opacity:1}],{duration:420,easing:OUT});
+  } else if (animate){
+    bg.animate([{opacity:0,transform:'scale(.97)'},{opacity:1,transform:'none'}],{duration:280,easing:OUT});
+    ck.animate([{transform:'scale(0)'},{transform:'scale(1)'}],{duration:380,easing:SPRING});
+  }
+}
+function select(id){
+  state.pending=id; placeSelection(true); updateDone();
+  if (q.value){ setTimeout(()=>{ q.value=''; $('#search').classList.remove('has'); renderList(); }, 260); }
+}
+q.oninput = () => { $('#search').classList.toggle('has', !!q.value); renderList(); };
+$('#clr').onclick = e => { e.preventDefault(); q.value=''; q.oninput(); q.focus(); };
+
+/* drag-to-dismiss с rubber-band вверх и учётом скорости */
+(()=>{
+  let y0=null, last=0, lastT=0, v=0, dy=0;
+  const start = e => { if (!state.sheetOpen) return; y0=e.clientY; last=y0; lastT=performance.now(); sheet.getAnimations().forEach(a=>{a.commitStyles?.();a.cancel()}); sheet.setPointerCapture(e.pointerId); };
+  const move = e => {
+    if (y0==null) return;
+    dy = e.clientY - y0;
+    const now=performance.now(); v=(e.clientY-last)/Math.max(1,now-lastT); last=e.clientY; lastT=now;
+    const y = dy<0 ? -Math.pow(-dy,.6) : dy;   // резинка вверх
+    sheet.style.transform=`translateY(${y}px)`;
+    scrim.style.opacity = .3 * (1 - Math.max(0,dy)/sheet.offsetHeight);
+  };
+  const end = () => {
+    if (y0==null) return; y0=null;
+    scrim.getAnimations().forEach(a=>a.cancel());
+    if (dy > sheet.offsetHeight*.3 || v > .6){ closeSheet(v); }
+    else { sheet.animate([{transform:sheet.style.transform},{transform:'translateY(0)'}],{duration:420,easing:SPRING,fill:'forwards'}); setScrim(true,7,.3); }
+    sheet.style.transform=''; dy=0;
+  };
+  [$('#grab'), $('.sh-head')].forEach(h=>h.addEventListener('pointerdown',e=>{ if(e.target.closest('button')) return; start(e); }));
+  sheet.addEventListener('pointermove',move); sheet.addEventListener('pointerup',end); sheet.addEventListener('pointercancel',end);
+})();
+
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ state.sheetOpen?closeSheet():closeMenu(); }});
+</script>
+</body>
+</html>

@@ -53,7 +53,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 /* chat */
 .chat{flex:1;overflow:auto;padding:14px 12px 20px;display:flex;flex-direction:column;gap:10px;position:relative}
 .day{align-self:center;background:#fff;border-radius:10px;font-size:11px;font-weight:600;padding:5px 10px;margin:4px 0 6px}
-.msg{max-width:78%;background:#fff;border-radius:16px;padding:9px 12px 7px;font-size:14px;line-height:1.35;position:relative;overflow:hidden;align-self:flex-start;will-change:width,height}
+.msg{max-width:min(78%,520px);background:#fff;border-radius:16px;padding:9px 12px 7px;font-size:14px;line-height:1.35;position:relative;overflow:hidden;align-self:flex-start;will-change:width,height}
 .msg.out{align-self:flex-end;background:var(--accent);color:#fff}
 .msg .t{display:block;white-space:pre-wrap}
 .msg .time{display:block;text-align:right;font-size:10px;color:var(--mute);margin-top:2px}
@@ -139,7 +139,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .empty{text-align:center;font-size:11.5px;color:var(--mute);padding:30px 40px;line-height:1.6}
 
 /* Телефон: во весь экран, как приложение */
-@media (max-width:600px){
+@media all{
   html,body{height:100%;overflow:hidden;overscroll-behavior:none}
   body{background:#fff;padding:0;display:block;min-height:0}
   .stage{display:block;height:100%}
@@ -224,7 +224,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 
   <div class="home"></div>
 </div></div>
-<p class="hint">Нажмите <b>•••</b> → включите <b>Автоперевод</b>. Тапните подзаголовок или «Язык перевода», чтобы сменить язык. Шторку можно тянуть вниз.</p>
+<p class="hint"></p>
 </div>
 
 <script>
@@ -241,7 +241,7 @@ const LANGS = [
 const MSGS = [
   {time:'10:02', zh:'你好，我们什么时候可以开始这个项目？', ru:'Здравствуйте, когда мы можем начать этот проект?', en:'Hello, when can we start this project?', ar:'مرحبًا، متى يمكننا بدء هذا المشروع؟', kk:'Сәлеметсіз бе, бұл жобаны қашан бастай аламыз?', es:'Hola, ¿cuándo podemos empezar este proyecto?', de:'Hallo, wann können wir mit dem Projekt beginnen?'},
   {out:true, time:'10:05', text:'Можем начать в понедельник, пришлю план.'},
-  {time:'10:07', zh:'请把预算表发给我们。', ru:'Пришлите нам, пожалуйста, смету.', en:'Please send us the budget sheet.', ar:'يرجى إرسال جدول الميزانية إلينا.', kk:'Бізге бюджет кестесін жіберіңізші.', es:'Envíennos la hoja de presupuesto, por favor.', de:'Bitte schicken Sie uns die Budgettabelle.'},
+  {time:'10:07', zh:'请把预算表发给我们。', ru:'Пожалуйста, пришлите нам бюджетную таблицу.', en:'Please send us the budget sheet.', ar:'يرجى إرسال جدول الميزانية إلينا.', kk:'Бізге бюджет кестесін жіберіңізші.', es:'Envíennos la hoja de presupuesto, por favor.', de:'Bitte schicken Sie uns die Budgettabelle.'},
   {time:'10:07', zh:'谢谢！', ru:'Спасибо!', en:'Thank you!', ar:'شكرًا!', kk:'Рахмет!', es:'¡Gracias!', de:'Danke!'},
 ];
 const state = {auto:false, lang:'ru', pending:'ru', coachShown:false, menuOpen:false, sheetOpen:false};
@@ -289,7 +289,7 @@ function morphMessages(){
 }
 
 /* подзаголовок: вертикальный слайд между «был(а)…» и «Автоперевод на …» */
-function updateSub(){
+function updateSub(){ return;
   const seen = $('.s-seen'), tr = $('.s-tr');
   const show = state.auto ? tr : seen, hide = state.auto ? seen : tr;
   const txt = 'Автоперевод ' + LANGS.find(l=>l.id===state.lang).acc;
@@ -355,7 +355,6 @@ function setAuto(on, {toast=true}={}){
 $('#sw').onclick = e => { e.stopPropagation(); setAuto(!state.auto); };
 $('#autoRow').onclick = e => { if (e.target.closest('.sw')) return; setAuto(!state.auto); };
 $('#langRow').onclick = () => { closeMenu(); setTimeout(openSheet, 120); };
-$('.s-tr').onclick = openSheet;
 
 /* ---------- toast ---------- */
 const toast = $('#toast'); let toastT;
